@@ -25,11 +25,7 @@ module.exports = async (req, res) => {
     // リクエストボディからニュース情報を取得
     const { title, summary, category } = req.body;
 
-    console.log('記事生成開始:', title);
-
-    // Gemini API初期化
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+  console.log('記事生成開始:', title);
 
     // プロンプト作成
     const prompt = `
@@ -71,10 +67,31 @@ module.exports = async (req, res) => {
 JSON形式のみを出力し、他のテキストは含めないでください。
 `;
 
-    // Gemini APIで記事生成
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    // REST APIで直接呼び出し（SDKを使わない）
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
 
     console.log('Gemini APIレスポンス:', text.substring(0, 200));
 
