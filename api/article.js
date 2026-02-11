@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
 
     // Gemini API初期化
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     // プロンプト作成
     const prompt = `
