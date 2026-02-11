@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
     // リクエストボディからニュース情報を取得
     const { title, summary, category } = req.body;
 
-  console.log('記事生成開始:', title);
+    console.log('記事生成開始:', title);
 
     // プロンプト作成
     const prompt = `
@@ -67,9 +67,9 @@ module.exports = async (req, res) => {
 JSON形式のみを出力し、他のテキストは含めないでください。
 `;
 
-    // REST APIで直接呼び出し（SDKを使わない）
+    // REST APIで直接呼び出し
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
