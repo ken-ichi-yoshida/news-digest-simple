@@ -1,118 +1,133 @@
 const fs = require('fs');
 const path = require('path');
 
-// ニュースデータ（サンプル）
-// 実際のプロジェクトでは、ここで検索APIを呼び出してニュースを収集します
-const newsData = [
-  // 国内経済（5件）
-  { id: 1, category: '国内経済', title: '上場企業の2026年3月期純利益が過去最高を更新見込み、3.0%増', summary: 'SMBC日興証券の調査によると、主要上場企業の純利益は前期比3.0%増の見通し。AI需要を追い風に電気機器が16.3%増、輸送用機器も円安で31.3%増と好調。' },
-  { id: 2, category: '国内経済', title: 'トヨタ自動車が売上高50兆円達成、通期純利益を3兆5700億円に上方修正', summary: 'ハイブリッド車販売増加と円安効果により、初の売上高50兆円到達。通期純利益は前年比25.1%減だが、原価改善効果で上方修正。' },
-  { id: 3, category: '国内経済', title: '日銀・増審議委員が追加利上げの必要性を強調、金融正常化の完成に不可欠', summary: '日本銀行の増一行審議委員が講演で、物価上昇率2%超えを抑制するため、さらなる利上げが必要と発言。時期については予断を持たず慎重にデータを見ていく姿勢を示した。' },
-  { id: 4, category: '国内経済', title: '長期金利が2%台で推移、3%到達の可能性も市場で議論', summary: '日本の長期金利（10年国債利回り）が2%台で推移。日銀の追加利上げ観測や財政悪化懸念から、3%到達の可能性も議論されている。' },
-  { id: 5, category: '国内経済', title: '円相場が157円台で推移、日米金利差と衆院選結果が影響', summary: '外国為替市場でドル円が157円台で推移。日米の金利動向と衆院選後の円安期待が交錯し、市場は今後の動向を注視。' },
+// 日付フォーマット関数（日本時間で正確に取得）
+function getJapaneseDate() {
+  // 日本時間 (UTC+9) で現在時刻を取得
+  const now = new Date();
+  const japanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
   
-  // 国内企業動向（5件）
-  { id: 6, category: '国内企業動向', title: 'トヨタ自動車が社長交代人事を発表、佐藤恒治氏から近健太氏へ', summary: 'トヨタが2026年度の社長交代を発表。佐藤恒治社長が会長に、近健太副社長が新社長に就任予定。電動化戦略の加速が期待される。' },
-  { id: 7, category: '国内企業動向', title: 'TSMC熊本第2工場で3ナノ半導体生産計画、日本初の最先端プロセス', summary: 'TSMCが熊本県の第2工場で、AI向け3ナノメートル半導体の生産を計画。2028年量産開始予定で、政府は2兆円規模の支援を検討。' },
-  { id: 8, category: '国内企業動向', title: '東急不動産HDの純利益が31%増、オフィス市況好調が後押し', summary: '東急不動産ホールディングスの2025年4-12月期連結純利益が前年同期比31%増。オフィス賃貸市場の好調が寄与した。' },
-  { id: 9, category: '国内企業動向', title: '来週の日経平均は値動き荒い展開、衆院選とAI投資懸念が交錯', summary: 'ロイターのアナリスト予想では、衆院選結果次第で史上最高値更新の可能性がある一方、AI過剰投資懸念が重しに。予想レンジは53,000-55,000円。' },
-  { id: 10, category: '国内企業動向', title: 'ソフトバンクグループの決算に注目、AI投資動向が焦点', summary: 'ソフトバンクグループが12日引け後に第3四半期決算を発表予定。対話型AIへの出資動向が市場の関心を集めている。' },
+  const year = japanTime.getFullYear();
+  const month = japanTime.getMonth() + 1;
+  const day = japanTime.getDate();
+  const weekday = ['日', '月', '火', '水', '木', '金', '土'][japanTime.getDay()];
   
-  // 世界情勢（5件）
-  { id: 11, category: '世界情勢', title: 'トランプ政権がインド関税を50%から18%に引き下げ、貿易緊張緩和へ', summary: 'トランプ大統領が2月2日にインド向け相互関税率を18%に引き下げ。当初の50%から大幅緩和で、貿易摩擦の沈静化を図る。' },
-  { id: 12, category: '世界情勢', title: '米テック企業のAI投資が6000億ドル規模に、投資家は警戒感', summary: 'Bloomberg報道によると、2026年の大手テック企業のAI関連支出は6000億ドルに達する見込み。過剰投資懸念から株価が軟調に推移。' },
-  { id: 13, category: '世界情勢', title: 'Block社が従業員を最大10%削減へ、業績評価の一環', summary: 'Bloombergによると、Jack Dorsey氏のBlock社が年次業績評価の一環として、最大10%の人員削減を実施予定。競争激化が背景に。' },
-  { id: 14, category: '世界情勢', title: 'IMFが2026年の世界成長率を上方修正、AI効果が貿易逆風を相殺', summary: '国際通貨基金（IMF）が2026年の世界経済成長率見通しを上方修正。AIブームによる生産性向上が、貿易摩擦の悪影響を相殺すると予測。' },
-  { id: 15, category: '世界情勢', title: 'ロシア・メドベージェフ氏が「世界的衝突は望まず」と発言', summary: 'ロシアのメドベージェフ安全保障会議副議長が、ロシアは世界的紛争を望んでいないと発言。ウクライナ情勢を巡る緊張緩和の姿勢を示唆。' },
-  
-  // オフィス業界（5件）
-  { id: 16, category: 'オフィス業界', title: 'イトーキが滋賀工場を全面改修、「働き方改革」の実証拠点に', summary: 'イトーキが滋賀工場をリニューアルし、オフィス面積556㎡の「design house SHIGA」を開設。工場内での働き方改革を実践する拠点として注目。' },
-  { id: 17, category: 'オフィス業界', title: 'ハイブリッドワークが主流化、米国では67%が柔軟な働き方を継続', summary: 'Propeller Insightsの調査によると、米国の従業員67%がハイブリッドワークを継続。生産性向上とワークライフバランス改善が背景に。' },
-  { id: 18, category: 'オフィス業界', title: '2026年版「働きがいのある会社」ランキング発表、日本企業が上位に', summary: '2026年版「日本における働きがいのある会社」調査結果が発表され、人的資本経営を重視する日系企業が上位にランクイン。' },
-  { id: 19, category: 'オフィス業界', title: 'スタートアップ経営者の約半数が「オフィス選び」に課題を感じる', summary: 'スタートアップ経営者500名への調査で、約半数がオフィス選びに課題を抱えていることが判明。立地・コスト・柔軟性のバランスが焦点。' },
-  { id: 20, category: 'オフィス業界', title: 'オフィス不動産市場に回復の兆し、賃料上昇期待が高まる', summary: '都心部のオフィス需要が回復傾向。ハイブリッドワーク定着後も、質の高いオフィス空間への需要は底堅く、賃料上昇が予想される。' },
-  
-  // AI最新トピックス（5件）
-  { id: 21, category: 'AI最新トピックス', title: 'Anthropicが200億ドル超の資金調達へ、評価額3500億ドルで来週にも完了', summary: 'Bloombergによると、AnthropicがOpenAI対抗として200億ドル超の資金調達を実施予定。当初目標の2倍以上の規模で、評価額は3500億ドルに。' },
-  { id: 22, category: 'AI最新トピックス', title: 'OpenAIが2026年第4四半期にIPO計画、Anthropicとの競争激化', summary: 'Wall Street Journalが報じたところによると、OpenAIが2026年Q4にIPOを計画。Anthropicの大型資金調達と競争が激化している。' },
-  { id: 23, category: 'AI最新トピックス', title: '大手テック企業のAI支出が7000億ドル規模に、収益性に疑問の声も', summary: 'Google、Microsoft、Amazon、Metaなどのテック大手が2026年にAIインフラに7000億ドルを投資予定。ROI（投資対効果）を懸念する声も。' },
-  { id: 24, category: 'AI最新トピックス', title: 'AnthropicのClaudeが新プラグイン対応、企業向けAIツールを拡充', summary: 'Anthropicの対話型AI「Claude」が新たに各種プラグインに対応。企業向けの業務効率化ツールとして機能を拡充している。' },
-  { id: 25, category: 'AI最新トピックス', title: '「AGI（汎用人工知能）は既に到達している」との議論が活発化', summary: 'TechXploreの記事で、AGI（汎用人工知能）が既に実現しているとの議論が提起された。定義と評価基準を巡り専門家の間で議論が続く。' }
-];
+  return `${year}年${month}月${day}日（${weekday}）`;
+}
 
-// 現在の日付を取得
-const now = new Date();
-const dateString = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDay()}日`;
-const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][now.getDay()];
+// ニュースデータ（将来的にはAPI取得に置き換え）
+const newsData = {
+  '国内経済': [
+    { title: '上場企業の2026年3月期純利益が過去最高を更新見込み、3.0%増', summary: '東証プライム上場企業の2026年3月期の連結純利益が前期比3.0%増の36兆円となり、4期連続で過去最高を更新する見通し。' },
+    { title: '日銀、政策金利を0.5%に引き上げ、物価上昇に対応', summary: '日本銀行は金融政策決定会合で、政策金利を0.25%から0.5%へ引き上げることを決定した。' },
+    { title: '円相場、1ドル=142円台で推移、利上げで円高進む', summary: '日銀の利上げを受けて外国為替市場で円高ドル安が進み、1ドル=142円台で推移している。' },
+    { title: '日本の消費者物価指数、前年同月比2.8%上昇', summary: '総務省が発表した1月の全国消費者物価指数は、前年同月比2.8%上昇した。' },
+    { title: '日本のGDP成長率、2025年度は1.2%の見通し', summary: '内閣府は2025年度の実質GDP成長率を1.2%と予測している。' }
+  ],
+  '国内企業動向': [
+    { title: 'ソニーグループ、2026年3月期の営業利益を1兆5000億円に上方修正', summary: 'ソニーグループは業績予想を上方修正し、営業利益を従来予想から1000億円増の1兆5000億円とした。' },
+    { title: 'トヨタ自動車、2026年の世界生産台数1050万台を計画', summary: 'トヨタ自動車は2026年の世界生産台数を前年比5%増の1050万台とする計画を発表した。' },
+    { title: 'ファーストリテイリング、海外売上高が国内を上回る', summary: 'ユニクロを展開するファーストリテイリングは、2025年8月期の海外売上高が初めて国内を上回った。' },
+    { title: 'ソフトバンクグループ、AI投資を加速、年間5000億円規模', summary: 'ソフトバンクグループは人工知能(AI)関連への投資を加速し、年間5000億円規模の投資を計画している。' },
+    { title: 'パナソニック、EV用バッテリー工場を国内に新設', summary: 'パナソニックは電気自動車(EV)用バッテリーの国内生産を強化するため、新工場を建設する。' }
+  ],
+  '世界情勢': [
+    { title: 'EU、2030年までにCO2排出量55%削減を法制化', summary: '欧州連合(EU)は気候変動対策として、2030年までに温室効果ガス排出量を1990年比で55%削減する法律を制定した。' },
+    { title: 'インド経済、2025年の成長率6.8%でアジア最高水準', summary: 'インドの2025年の実質GDP成長率は6.8%となり、アジアで最も高い経済成長を記録した。' },
+    { title: '米中貿易協議、半導体分野で部分合意', summary: 'アメリカと中国は貿易協議で半導体分野における輸出規制の一部緩和で合意した。' },
+    { title: '国連、気候変動対策に年間3兆ドルの投資が必要と試算', summary: '国連は気候変動対策のため、2030年までに年間3兆ドルの投資が必要との報告書を発表した。' },
+    { title: '世界の再生可能エネルギー投資、2025年は過去最高の5000億ドル', summary: '国際エネルギー機関(IEA)によると、2025年の世界の再生可能エネルギーへの投資額は過去最高の5000億ドルに達した。' }
+  ],
+  'オフィス業界': [
+    { title: '東京都心のオフィス空室率、5.2%に改善', summary: '三鬼商事が発表した1月の東京都心5区のオフィス空室率は5.2%となり、前月から0.3ポイント改善した。' },
+    { title: 'リモートワーク継続企業、全体の65%に達する', summary: '民間調査によると、コロナ禍後もリモートワークを継続している企業は全体の65%に達している。' },
+    { title: 'オフィス家具大手、ハイブリッドワーク対応製品を拡充', summary: 'オフィス家具大手各社は、オフィスと自宅の両方で使えるハイブリッドワーク対応製品の展開を強化している。' },
+    { title: '企業のオフィス縮小、2025年は前年比20%増', summary: '不動産調査会社によると、2025年にオフィススペースを縮小した企業は前年比20%増加した。' },
+    { title: 'コワーキングスペース利用、大企業でも拡大', summary: '大企業によるコワーキングスペースの利用が拡大しており、サテライトオフィスとして活用する事例が増えている。' }
+  ],
+  'AI最新トピックス': [
+    { title: 'OpenAI、GPT-5を2026年夏にリリース予定と発表', summary: 'OpenAIは次世代大規模言語モデル「GPT-5」を2026年夏にリリースする予定であることを明らかにした。' },
+    { title: 'Google、医療診断AIが専門医レベルの精度を達成', summary: 'Googleが開発した医療診断AIシステムが、複数の疾患において専門医と同等の診断精度を達成したと発表した。' },
+    { title: 'AI生成コンテンツ、世界のクリエイティブ市場の30%を占める', summary: '調査会社によると、2025年のクリエイティブコンテンツ市場において、AI生成コンテンツが全体の30%を占めた。' },
+    { title: '日本政府、AI規制法案を国会に提出', summary: '日本政府は人工知能の開発と利用に関する規制を盛り込んだ法案を通常国会に提出した。' },
+    { title: 'AI半導体市場、2026年は1500億ドル規模に成長予測', summary: '市場調査会社は、AI向け半導体市場が2026年に前年比35%増の1500億ドル規模に成長すると予測している。' }
+  ]
+};
 
-console.log(`📰 ニュース更新中... ${dateString}（${dayOfWeek}）`);
-
-// HTMLテンプレートを生成
-const html = `<!DOCTYPE html>
+// HTML生成
+function generateHTML() {
+  const dateString = getJapaneseDate();
+  
+  let newsHTML = '';
+  
+  for (const [category, articles] of Object.entries(newsData)) {
+    newsHTML += `
+        <section class="category">
+          <h2>${category}</h2>
+          <div class="news-list">`;
+    
+    articles.forEach(article => {
+      newsHTML += `
+            <article class="news-item">
+              <h3>${article.title}</h3>
+              <p>${article.summary}</p>
+              <button class="detail-btn" data-title="${article.title}" data-summary="${article.summary}" data-category="${category}">
+                📖 もっと詳しく教えて
+              </button>
+            </article>`;
+    });
+    
+    newsHTML += `
+          </div>
+        </section>`;
+  }
+  
+  const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>朝のニュースダイジェスト - ${dateString}</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📰 朝のニュースダイジェスト</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="header">
-    <div class="header-content">
-      <h1>📰 朝のニュースダイジェスト</h1>
-      <p class="date">${dateString}（${dayOfWeek}）午前7時配信</p>
+    <header>
+        <h1>📰 朝のニュースダイジェスト</h1>
+        <p class="date">${dateString} 午前7時配信</p>
+    </header>
+
+    <main>
+${newsHTML}
+    </main>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="article-content">
+                <p class="loading">記事を生成中...</p>
+            </div>
+        </div>
     </div>
-  </header>
 
-  <main class="main">
-    <section class="news-section">
-      <h2 class="category-title" data-category="国内経済">🏦 国内経済（5件）</h2>
-      <div class="news-list" id="news-domestic-economy"></div>
-    </section>
-
-    <section class="news-section">
-      <h2 class="category-title" data-category="国内企業動向">🏢 国内企業動向（5件）</h2>
-      <div class="news-list" id="news-domestic-business"></div>
-    </section>
-
-    <section class="news-section">
-      <h2 class="category-title" data-category="世界情勢">🌍 世界情勢（5件）</h2>
-      <div class="news-list" id="news-world"></div>
-    </section>
-
-    <section class="news-section">
-      <h2 class="category-title" data-category="オフィス業界">💼 オフィス業界（5件）</h2>
-      <div class="news-list" id="news-office"></div>
-    </section>
-
-    <section class="news-section">
-      <h2 class="category-title" data-category="AI最新トピックス">🤖 AI最新トピックス（5件）</h2>
-      <div class="news-list" id="news-ai"></div>
-    </section>
-  </main>
-
-  <!-- モーダル -->
-  <div id="modal" class="modal">
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <div id="modal-body"></div>
-    </div>
-  </div>
-
-  <script>
-    // ニュースデータ
-    const newsData = ${JSON.stringify(newsData, null, 2)};
-  </script>
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
-</html>
-`;
+</html>`;
+  
+  return html;
+}
 
-// ファイルに書き込み
-const outputPath = path.join(__dirname, '..', 'public', 'index.html');
-fs.writeFileSync(outputPath, html, 'utf8');
-
-console.log('✅ ニュース更新完了！');
-console.log(`📄 ファイル: ${outputPath}`);
-console.log(`📅 日付: ${dateString}（${dayOfWeek}）`);
-console.log(`📊 ニュース件数: ${newsData.length}件`);
+// メイン処理
+try {
+  const html = generateHTML();
+  const outputPath = path.join(__dirname, '../public/index.html');
+  
+  fs.writeFileSync(outputPath, html, 'utf8');
+  
+  console.log('✅ ニュース更新完了');
+  console.log(`📅 日付: ${getJapaneseDate()}`);
+  console.log(`📝 ファイル: ${outputPath}`);
+  console.log(`📰 ニュース件数: ${Object.values(newsData).flat().length}件`);
+} catch (error) {
+  console.error('❌ エラーが発生しました:', error);
+  process.exit(1);
+}
